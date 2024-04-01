@@ -1,59 +1,59 @@
 name: build
 
 on:
-    push:
+  push:
 
 permissions:
-    actions: write
-    checks: write
-    contents: write
+  actions: write
+  checks: write
+  contents: write
 
 jobs:
-    maketag:
-       runs-on: ubuntu-latest
-       outputs:
-          tag: ${{ steps.tag.outputs.tag }}
-       steps:
-        - name: Check-out repository
-          uses: actions/checkout@v3
+  maketag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Check-out repository
+        uses: actions/checkout@v4
 
-        - id: tag
-          run: |
-            TAG=v$(TZ=JST-9 date "+%Y-%m-%d-%H-%M")
-            echo "$TAG"
-            echo "tag=$TAG" >> $GITHUB_OUTPUT
-            git config user.name "GitHub Action"
-            git config user.email "unchiburiburi45450721@unchiburiburi45450721.com"
-            git tag -a $TAG -m "Published version $TAG" ${GITHUB_SHA}
-            git push origin $TAG
+      - id: tag
+        run: |
+          TAG=v$(TZ=JST-9 date "+%Y-%m-%d-%H-%M")
+          echo "$TAG"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          git config user.name "GitHub Action"
+          git config user.email "unchiburiburi45450721@unchiburiburi45450721.com"
+          git tag -a $TAG -m "Published version $TAG" ${GITHUB_SHA}
+          git push origin $TAG
 
-    build:
-        needs: maketag
-        runs-on: windows-latest
-        steps:
-            - name: Check-out repository
-              uses: actions/checkout@v3
-              with:
-                submodules: recursive
+  build:
+    needs: maketag
+    runs-on: windows-latest
+    steps:
+      - name: Check-out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-            - name: Set up Rust toolchain
-              uses: actions-rs/toolchain@v1
-              with:
-                toolchain: stable
+      - name: Set up Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
 
-            - name: Build
-              run: cargo build --release
+      - name: Build
+        run: cargo build --release
 
-            - name: Upload Artifacts
-              uses: actions/upload-artifact@v3
-              with:
-                  name: Build
-                  path: |
-                    target/release/*.exe      
-            
-            - name: Cut a new release
-              uses: softprops/action-gh-release@v1
-              with:
-                tag_name: ${{ needs.maketag.outputs.tag }}
-                files: |
-                  target/release/*.exe       
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Build
+          path: |
+            target/release/*.exe
+
+      - name: Cut a new release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.maketag.outputs.tag }}
+          files: |
+            target/release/*.exe
