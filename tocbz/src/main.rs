@@ -1,18 +1,17 @@
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rayon::prelude::*;
-use sevenz_rust;
-use std::fs::{create_dir_all, metadata, rename, File};
+use std::fs::{create_dir_all, rename, File};
 use std::io::{BufRead, Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{env, io};
-use tempfile;
 use unrar::Archive;
 use walkdir::WalkDir;
 use zip::write::FileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
-fn cbz_name(path: &PathBuf, is_dir: bool) -> PathBuf {
-    let mut new_path = path.clone();
-    if is_dir {
+fn cbz_name(path: &Path) -> PathBuf {
+    let mut new_path = path.to_path_buf();
+    if path.is_dir() {
         let name = new_path.file_name().unwrap().to_str().unwrap();
         new_path = new_path.with_file_name(format!("{}.cbz", name));
     } else {
@@ -36,7 +35,7 @@ fn dir2cbz(dir: &PathBuf, new_name: &PathBuf) {
         let path = entry.path();
         if path.is_file() {
             let name = path.strip_prefix(dir).unwrap();
-            let name = name.to_str().unwrap().replace("\\", "/");
+            let name = name.to_str().unwrap().replace('\\', "/");
             zip.start_file(name, options).unwrap();
             let mut file = std::fs::File::open(path).unwrap();
             std::io::copy(&mut file, &mut zip).unwrap();
@@ -56,7 +55,7 @@ fn zip2cbz(orig_zip_file: &PathBuf, new_name: &PathBuf) {
             let mut buf = Vec::new();
             let _ = file.read_to_end(&mut buf);
             let _ = zip.start_file(file.name(), options);
-            let _ = zip.write_all(&buf).unwrap();
+            zip.write_all(&buf).unwrap();
         }
     }
 }
@@ -69,10 +68,10 @@ fn rar2cbz(orig_rar_file: &PathBuf, new_name: &PathBuf) {
     let mut archive = Archive::new(orig_rar_file).open_for_processing().unwrap();
     while let Some(header) = archive.read_header().unwrap() {
         if header.entry().is_file() {
-            let name = &header.entry().filename.to_str().unwrap().replace("\\", "/");
+            let name = &header.entry().filename.to_str().unwrap().replace('\\', "/");
             let (data, archive_temp) = header.read().unwrap();
             let _ = zip.start_file(name, options);
-            let _ = zip.write_all(&data).unwrap();
+            zip.write_all(&data).unwrap();
 
             archive = archive_temp;
         } else {
@@ -89,15 +88,11 @@ fn sevenzip2cbz(orig_7z_file: &PathBuf, new_name: &PathBuf) {
     dir2cbz(&tmp_dir.to_path_buf(), new_name);
 }
 
-fn tocbz(path: &PathBuf) {
-    if path.is_dir() {
-        let new_name = cbz_name(path, true);
-        dir2cbz(path, &new_name);
-        return;
-    }
+fn tocbz(path: &PathBuf, pb: &ProgressBar) {
+    pb.set_message(format!("処理中: {:?}", path));
 
-    let new_name = cbz_name(path, path.is_dir());
-    let ext = path.extension().unwrap();
+    let new_name = cbz_name(path);
+    let ext = path.extension().unwrap_or_default();
     if path.is_dir() {
         dir2cbz(path, &new_name);
     } else if zip::ZipArchive::new(std::fs::File::open(path).unwrap()).is_ok() {
@@ -118,11 +113,7 @@ fn tocbz(path: &PathBuf) {
         create_dir_all(&completed_dir).unwrap();
     }
     rename(path, completed_name).unwrap();
-    println!(
-        "{} -> {}",
-        path.to_str().unwrap(),
-        new_name.to_str().unwrap()
-    );
+    pb.finish_with_message(format!("完了: {:?}", path));
 }
 
 fn main() {
@@ -130,19 +121,31 @@ fn main() {
     let valid_files: Vec<PathBuf> = args
         .iter()
         .skip(1) // プログラム名をスキップ
-        .filter_map(|arg| {
-            let path = PathBuf::from(arg);
-            if metadata(&path).is_ok() {
-                Some(path)
-            } else {
-                panic!("{} is not a valid path", arg)
-            }
-        })
+        .map(PathBuf::from)
         .collect();
 
-    valid_files.par_iter().for_each(|file| {
-        tocbz(file);
-    });
+    let m = MultiProgress::new();
+    let sty = ProgressStyle::default_bar()
+        .template("{msg}")
+        .unwrap()
+        .progress_chars("#>-");
+
+    let pbs = valid_files
+        .iter()
+        .map(|file| {
+            let pb = m.add(ProgressBar::new(100));
+            pb.set_style(sty.clone());
+            pb.set_message(format!("準備中: {:?}", file));
+            pb
+        })
+        .collect::<Vec<_>>();
+
+    valid_files
+        .par_iter()
+        .zip(pbs.par_iter())
+        .for_each(|(file, pb)| {
+            tocbz(file, pb);
+        });
 
     println!("Press Enter to exit…");
     let mut input = String::new();
