@@ -3,6 +3,7 @@ use rayon::prelude::*;
 use std::fs::{create_dir_all, rename, File};
 use std::io::{BufRead, Read, Write};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use std::{env, io};
 use unrar::Archive;
 use walkdir::WalkDir;
@@ -125,15 +126,24 @@ fn main() {
         .collect();
 
     let m = MultiProgress::new();
-    let sty = ProgressStyle::default_bar()
-        .template("{msg}")
+    let sty = ProgressStyle::default_spinner()
+        .template("{spinner:.blue} {msg}")
         .unwrap()
-        .progress_chars("#>-");
+        .tick_strings(&[
+            "▹▹▹▹▹",
+            "▸▹▹▹▹",
+            "▹▸▹▹▹",
+            "▹▹▸▹▹",
+            "▹▹▹▸▹",
+            "▹▹▹▹▸",
+            "▪▪▪▪▪",
+        ]);
 
     let pbs = valid_files
         .iter()
         .map(|file| {
-            let pb = m.add(ProgressBar::new(100));
+            let pb = m.add(ProgressBar::new_spinner());
+            pb.enable_steady_tick(Duration::from_millis(80));
             pb.set_style(sty.clone());
             pb.set_message(format!("準備中: {:?}", file));
             pb
