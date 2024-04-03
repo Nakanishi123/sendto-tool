@@ -8,4 +8,4 @@ edition = "2021"
 [dependencies]
 indicatif = { version = "0.17.8", features = ["rayon"] }
 libtocbz = { path = "../libtocbz" }
-rayon = "1.7"
+rayon = "1.10"
