@@ -1,20 +1,19 @@
 use image::load_from_memory;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use libtocbz::{cbz_name, dir2cbz, is_zip, rar2cbz, sevenzip2cbz, zip2cbz};
+use libtocbz::tocbz;
 use rayon::prelude::*;
-use std::fs::{create_dir_all, rename};
 use std::io::BufRead;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use std::{env, io};
 
 const MAX_HEIGHT: u32 = 2560;
 
-fn resize_image(file: Vec<u8>) -> std::io::Result<Vec<u8>> {
+fn resize_image(file: Vec<u8>, name: &Path) -> std::io::Result<(Vec<u8>, PathBuf)> {
     let image = match load_from_memory(&file) {
         Ok(image) => image,
         Err(_) => {
-            return Ok(file);
+            return Ok((file, name.to_path_buf()));
         }
     };
     if MAX_HEIGHT < image.height() {
@@ -24,39 +23,15 @@ fn resize_image(file: Vec<u8>) -> std::io::Result<Vec<u8>> {
         let resized = image.resize(new_width, new_height, image::imageops::FilterType::Lanczos3);
         let mut buf = std::io::Cursor::new(Vec::new());
         return match resized.write_to(&mut buf, image::ImageFormat::WebP) {
-            Ok(_) => Ok(buf.into_inner()),
+            Ok(_) => {
+                let mut new_name = name.to_path_buf();
+                new_name.set_extension("webp");
+                Ok((buf.into_inner(), new_name))
+            }
             Err(_) => panic!("Failed to write image"),
         };
     }
-    Ok(file)
-}
-
-fn tocbz(path: &PathBuf, pb: &ProgressBar) {
-    pb.set_message(format!("処理中: {:?}", path));
-
-    let new_name = cbz_name(path);
-    let ext = path.extension().unwrap_or_default();
-    if path.is_dir() {
-        dir2cbz(path, &new_name, resize_image);
-    } else if is_zip(path) {
-        zip2cbz(path, &new_name, resize_image);
-    } else if ext == "rar" {
-        rar2cbz(path, &new_name, resize_image);
-    } else if ext == "7z" {
-        sevenzip2cbz(path, &new_name, resize_image);
-    } else {
-        println!("{} is not supported", path.to_str().unwrap());
-        return;
-    }
-
-    // 完了したファイルをoldディレクトリに移動
-    let completed_dir = path.parent().unwrap().join("old");
-    let completed_name = completed_dir.join(path.file_name().unwrap());
-    if !completed_dir.exists() {
-        create_dir_all(&completed_dir).unwrap();
-    }
-    rename(path, completed_name).unwrap();
-    pb.finish_with_message(format!("完了: {:?}", path));
+    Ok((file, name.to_path_buf()))
 }
 
 fn main() {
@@ -96,7 +71,7 @@ fn main() {
         .par_iter()
         .zip(pbs.par_iter())
         .for_each(|(file, pb)| {
-            tocbz(file, pb);
+            tocbz(file, pb, resize_image);
         });
 
     println!("Press Enter to exit…");

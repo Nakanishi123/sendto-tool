@@ -6,6 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+indicatif = { version = "0.17.8", features = ["rayon"] }
+rayon = "1.10"
 sevenz-rust = "0.5"
 tempfile = "3"
 unrar = "0.5"
