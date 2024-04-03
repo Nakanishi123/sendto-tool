@@ -1,12 +1,8 @@
 [package]
-name = "tocbz"
+name = "tocbzwithresize"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-indicatif = { version = "0.17.8", features = ["rayon"] }
-libtocbz = { path = "../libtocbz" }
-rayon = "1.7"
-zip = "0.6"
