@@ -1,5 +1,5 @@
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use libtocbz::{cbz_name, dir2cbz, rar2cbz, sevenzip2cbz, zip2cbz};
+use libtocbz::{cbz_name, dir2cbz, is_zip, rar2cbz, sevenzip2cbz, zip2cbz};
 use rayon::prelude::*;
 use std::fs::{create_dir_all, rename};
 use std::io::BufRead;
@@ -7,19 +7,23 @@ use std::path::PathBuf;
 use std::time::Duration;
 use std::{env, io};
 
+fn do_nothing(file: Vec<u8>) -> std::io::Result<Vec<u8>> {
+    Ok(file)
+}
+
 fn tocbz(path: &PathBuf, pb: &ProgressBar) {
     pb.set_message(format!("処理中: {:?}", path));
 
     let new_name = cbz_name(path);
     let ext = path.extension().unwrap_or_default();
     if path.is_dir() {
-        dir2cbz(path, &new_name);
-    } else if zip::ZipArchive::new(std::fs::File::open(path).unwrap()).is_ok() {
-        zip2cbz(path, &new_name);
+        dir2cbz(path, &new_name, do_nothing);
+    } else if is_zip(path) {
+        zip2cbz(path, &new_name, do_nothing);
     } else if ext == "rar" {
-        rar2cbz(path, &new_name);
+        rar2cbz(path, &new_name, do_nothing);
     } else if ext == "7z" {
-        sevenzip2cbz(path, &new_name);
+        sevenzip2cbz(path, &new_name, do_nothing);
     } else {
         println!("{} is not supported", path.to_str().unwrap());
         return;

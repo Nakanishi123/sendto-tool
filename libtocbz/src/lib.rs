@@ -22,7 +22,11 @@ pub fn cbz_name(path: &Path) -> PathBuf {
     new_path
 }
 
-pub fn dir2cbz(dir: &PathBuf, new_name: &PathBuf) {
+pub fn dir2cbz(
+    dir: &PathBuf,
+    new_name: &PathBuf,
+    process_file: impl Fn(Vec<u8>) -> std::io::Result<Vec<u8>>,
+) {
     let file = std::fs::File::create(new_name).unwrap();
     let mut zip = ZipWriter::new(file);
     let options = FileOptions::default().compression_method(CompressionMethod::Deflated);
@@ -34,13 +38,30 @@ pub fn dir2cbz(dir: &PathBuf, new_name: &PathBuf) {
             let name = path.strip_prefix(dir).unwrap();
             let name = name.to_str().unwrap().replace('\\', "/");
             zip.start_file(name, options).unwrap();
-            let mut file = std::fs::File::open(path).unwrap();
-            std::io::copy(&mut file, &mut zip).unwrap();
+            let mut file = match std::fs::File::open(path) {
+                Ok(file) => file,
+                Err(_) => {
+                    panic!("Failed to open file: {:?}", path)
+                }
+            };
+            let mut buf = Vec::new();
+            let _ = file.read_to_end(&mut buf);
+            let buf = match process_file(buf) {
+                Ok(buf) => buf,
+                Err(_) => {
+                    panic!("Failed to process image: {:?}", path)
+                }
+            };
+            zip.write_all(&buf).unwrap();
         }
     }
 }
 
-pub fn zip2cbz(orig_zip_file: &PathBuf, new_name: &PathBuf) {
+pub fn zip2cbz(
+    orig_zip_file: &PathBuf,
+    new_name: &PathBuf,
+    process_file: impl Fn(Vec<u8>) -> std::io::Result<Vec<u8>>,
+) {
     let file = std::fs::File::create(new_name).unwrap();
     let mut zip = ZipWriter::new(file);
     let options = FileOptions::default().compression_method(CompressionMethod::Deflated);
@@ -52,12 +73,22 @@ pub fn zip2cbz(orig_zip_file: &PathBuf, new_name: &PathBuf) {
             let mut buf = Vec::new();
             let _ = file.read_to_end(&mut buf);
             let _ = zip.start_file(file.name(), options);
+            let buf = match process_file(buf) {
+                Ok(buf) => buf,
+                Err(_) => {
+                    panic!("Failed to process image: {:?}", file.name())
+                }
+            };
             zip.write_all(&buf).unwrap();
         }
     }
 }
 
-pub fn rar2cbz(orig_rar_file: &PathBuf, new_name: &PathBuf) {
+pub fn rar2cbz(
+    orig_rar_file: &PathBuf,
+    new_name: &PathBuf,
+    process_file: impl Fn(Vec<u8>) -> std::io::Result<Vec<u8>>,
+) {
     let file = std::fs::File::create(new_name).unwrap();
     let mut zip = ZipWriter::new(file);
     let options = FileOptions::default().compression_method(CompressionMethod::Deflated);
@@ -68,7 +99,13 @@ pub fn rar2cbz(orig_rar_file: &PathBuf, new_name: &PathBuf) {
             let name = &header.entry().filename.to_str().unwrap().replace('\\', "/");
             let (data, archive_temp) = header.read().unwrap();
             let _ = zip.start_file(name, options);
-            zip.write_all(&data).unwrap();
+            let buf = match process_file(data) {
+                Ok(buf) => buf,
+                Err(_) => {
+                    panic!("Failed to process image: {:?}", name)
+                }
+            };
+            zip.write_all(&buf).unwrap();
 
             archive = archive_temp;
         } else {
@@ -77,10 +114,18 @@ pub fn rar2cbz(orig_rar_file: &PathBuf, new_name: &PathBuf) {
     }
 }
 
-pub fn sevenzip2cbz(orig_7z_file: &PathBuf, new_name: &PathBuf) {
+pub fn sevenzip2cbz(
+    orig_7z_file: &PathBuf,
+    new_name: &PathBuf,
+    process_file: impl Fn(Vec<u8>) -> std::io::Result<Vec<u8>>,
+) {
     let binding = tempfile::tempdir_in(orig_7z_file.parent().unwrap()).unwrap();
     let tmp_dir = binding.path();
 
     sevenz_rust::decompress_file(orig_7z_file, tmp_dir).unwrap();
-    dir2cbz(&tmp_dir.to_path_buf(), new_name);
+    dir2cbz(&tmp_dir.to_path_buf(), new_name, process_file);
+}
+
+pub fn is_zip(path: &Path) -> bool {
+    zip::ZipArchive::new(std::fs::File::open(path).unwrap()).is_ok()
 }
