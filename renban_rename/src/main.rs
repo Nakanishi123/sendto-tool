@@ -153,7 +153,7 @@ fn make_temp_file_path(file: &Path) -> PathBuf {
 
 #[cfg(test)]
 mod test {
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
     use crate::make_temp_file_path;
 
