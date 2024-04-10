@@ -1,7 +1,10 @@
 name: build
 
 on:
-  push:
+  pull_request:
+    branches:
+      - main
+    types: closed
 
 permissions:
   actions: write
