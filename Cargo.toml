@@ -1,3 +1,9 @@
 [workspace]
-members = ["libtocbz", "renban_rename", "tocbz", "tocbzwithresize"]
+members = [
+    "changetime",
+    "libtocbz",
+    "renban_rename",
+    "tocbz",
+    "tocbzwithresize",
+]
 resolver = "2"
