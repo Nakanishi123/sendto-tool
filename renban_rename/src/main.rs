@@ -143,7 +143,7 @@ fn make_temp_file_path(file: &Path) -> PathBuf {
     loop {
         hash.hash(&mut hasher);
         hash = hasher.finish();
-        let temp_file_name = format!("{}.{:x}", file_name.to_str().unwrap(), hash);
+        let temp_file_name = format!("{hash}");
         let temp_file = dir.join(temp_file_name);
         if !temp_file.exists() {
             return temp_file;
